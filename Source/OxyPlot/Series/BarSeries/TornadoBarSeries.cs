@@ -41,7 +41,6 @@ namespace OxyPlot.Series
             this.MaximumFillColor = OxyColor.FromRgb(216, 82, 85);
             this.MinimumFillColor = OxyColor.FromRgb(84, 138, 209);
 
-            this.LabelColor = OxyColors.Automatic;
             this.StrokeColor = OxyColors.Black;
             this.StrokeThickness = 1;
 
@@ -74,16 +73,6 @@ namespace OxyPlot.Series
         /// </summary>
         /// <value>The base value.</value>
         public double BaseValue { get; set; }
-
-        /// <summary>
-        /// Gets or sets the label color.
-        /// </summary>
-        public OxyColor LabelColor { get; set; }
-
-        /// <summary>
-        /// Gets or sets the label margins.
-        /// </summary>
-        public double LabelMargin { get; set; }
 
         /// <summary>
         /// Gets or sets the color field.
@@ -226,54 +215,26 @@ namespace OxyPlot.Series
                 var marginVector = this.Orientate(new ScreenVector(this.LabelMargin, 0));
 
                 if (this.MinimumLabelFormatString != null)
-                {
-                    var s = StringHelper.Format(
-                        this.ActualCulture,
+                    this.RenderLabel(
+                        rc,
+                        item,
+                        baseValue,
+                        item.Minimum,
+                        barStart,
+                        barEnd,
                         this.MinimumLabelFormatString,
-                        this.GetItem(this.ValidItemsIndexInversion[i]),
                         item.Minimum);
 
-                    var pt = this.Transform(item.Minimum, barMid) - marginVector;
-                    var ha = HorizontalAlignment.Right;
-                    var va = VerticalAlignment.Middle;
-                    this.Orientate(ref ha, ref va);
-
-                    rc.DrawText(
-                        pt,
-                        s,
-                        this.ActualTextColor,
-                        this.ActualFont,
-                        this.ActualFontSize,
-                        this.ActualFontWeight,
-                        0,
-                        ha,
-                        va);
-                }
-
                 if (this.MaximumLabelFormatString != null)
-                {
-                    var s = StringHelper.Format(
-                        this.ActualCulture,
+                    this.RenderLabel(
+                        rc,
+                        item,
+                        baseValue,
+                        item.Maximum,
+                        barStart,
+                        barEnd,
                         this.MaximumLabelFormatString,
-                        this.GetItem(this.ValidItemsIndexInversion[i]),
                         item.Maximum);
-
-                    var pt = this.Transform(item.Maximum, barMid) + marginVector;
-                    var ha = HorizontalAlignment.Left;
-                    var va = VerticalAlignment.Middle;
-                    this.Orientate(ref ha, ref va);
-
-                    rc.DrawText(
-                        pt,
-                        s,
-                        this.ActualTextColor,
-                        this.ActualFont,
-                        this.ActualFontSize,
-                        this.ActualFontWeight,
-                        0,
-                        ha,
-                        va);
-                }
             }
         }
 

@@ -57,6 +57,17 @@ namespace OxyPlot
         }
 
         /// <summary>
+        /// Changes the opacity.
+        /// </summary>
+        /// <param name="color">The color.</param>
+        /// <param name="factor">The factor.</param>
+        /// <returns>A color with the new opacity.</returns>
+        public static OxyColor ChangeOpacity(this OxyColor color, double factor)
+        {
+            return OxyColor.FromAColor((byte)(color.A * factor), color);
+        }
+
+        /// <summary>
         /// Calculates the complementary color.
         /// </summary>
         /// <param name="color">The color to convert.</param>
@@ -175,13 +186,9 @@ namespace OxyPlot
         public static string GetColorName(this OxyColor color)
         {
             var t = typeof(OxyColors);
-#if NET40
-            var colors = t.GetProperties(BindingFlags.Static | BindingFlags.Public);
-            var colorField = colors.FirstOrDefault(field => color.Equals(field.GetValue(null, null)));
-#else
+
             var colors = t.GetRuntimeFields().Where(fi => fi.IsPublic && fi.IsStatic);
             var colorField = colors.FirstOrDefault(field => color.Equals(field.GetValue(null)));
-#endif
 
             return colorField != null ? colorField.Name : null;
         }

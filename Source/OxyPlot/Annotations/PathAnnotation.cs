@@ -7,6 +7,8 @@
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
+#nullable enable
+
 namespace OxyPlot.Annotations
 {
     using System;
@@ -21,7 +23,7 @@ namespace OxyPlot.Annotations
         /// <summary>
         /// The points of the line, transformed to screen coordinates.
         /// </summary>
-        private IList<ScreenPoint> screenPoints;
+        private IList<ScreenPoint>? screenPoints;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="PathAnnotation" /> class.
@@ -101,6 +103,30 @@ namespace OxyPlot.Annotations
         public double TextPadding { get; set; }
 
         /// <summary>
+        /// Gets or sets the padding of the border rectangle.
+        /// </summary>
+        /// <value>The border padding.</value>
+        public OxyThickness BorderPadding { get; set; }
+
+        /// <summary>
+        /// Gets or sets the fill color of the border rectangle.
+        /// </summary>
+        /// <value>The border background color.</value>
+        public OxyColor BorderBackground { get; set; }
+
+        /// <summary>
+        /// Gets or sets the stroke color of the border rectangle.
+        /// </summary>
+        /// <value>The border stroke color.</value>
+        public OxyColor BorderStroke { get; set; }
+
+        /// <summary>
+        /// Gets or sets the stroke thickness of the border rectangle.
+        /// </summary>
+        /// <value>The border stroke thickness.</value>
+        public double BorderStrokeThickness { get; set; }
+
+        /// <summary>
         /// Gets or sets the text orientation.
         /// </summary>
         /// <value>The text orientation.</value>
@@ -150,6 +176,15 @@ namespace OxyPlot.Annotations
         /// <inheritdoc/>
         public override void Render(IRenderContext rc)
         {
+            if (this.XAxis == null)
+            {
+                throw new InvalidOperationException($"{nameof(this.XAxis)} must be non-null before rendering.");
+            }
+            if (this.YAxis == null)
+            {
+                throw new InvalidOperationException($"{nameof(this.YAxis)} must be non-null before rendering.");
+            }
+
             base.Render(rc);
 
             this.CalculateActualMinimumsMaximums();
@@ -233,13 +268,28 @@ namespace OxyPlot.Annotations
 
                 position += new ScreenVector(f * this.TextPadding * Math.Cos(angleInRadians), f * this.TextPadding * Math.Sin(angleInRadians));
 
-                if (!string.IsNullOrEmpty(this.Text))
+                if (this.Text != null &&
+                    !string.IsNullOrEmpty(this.Text))
                 {
                     var textPosition = this.GetActualTextPosition(() => position);
 
                     if (this.TextPosition.IsDefined())
                     {
                         angle = this.TextRotation;
+                    }
+
+                    var textSize = rc.MeasureText(this.Text, this.ActualFont, this.ActualFontSize, this.ActualFontWeight);
+
+                    var textBounds = TextAnnotation.GetTextBounds(position, textSize, this.BorderPadding, angle, ha, va);
+
+                    if ((angle % 90).Equals(0))
+                    {
+                        var actualRect = new OxyRect(textBounds[0], textBounds[2]);
+                        rc.DrawRectangle(actualRect, this.BorderBackground, this.BorderStroke, this.BorderStrokeThickness, this.EdgeRenderingMode);
+                    }
+                    else
+                    {
+                        rc.DrawPolygon(textBounds, this.BorderBackground, this.BorderStroke, this.BorderStrokeThickness, this.EdgeRenderingMode);
                     }
 
                     rc.DrawText(
@@ -263,7 +313,7 @@ namespace OxyPlot.Annotations
         /// <returns>
         /// The result of the hit test.
         /// </returns>
-        protected override HitTestResult HitTestOverride(HitTestArguments args)
+        protected override HitTestResult? HitTestOverride(HitTestArguments args)
         {
             if (this.screenPoints == null)
             {
@@ -291,6 +341,15 @@ namespace OxyPlot.Annotations
         /// </summary>
         protected virtual void CalculateActualMinimumsMaximums()
         {
+            if (this.XAxis == null)
+            {
+                throw new InvalidOperationException($"{nameof(this.XAxis)} is null.");
+            }
+            if (this.YAxis == null)
+            {
+                throw new InvalidOperationException($"{nameof(this.YAxis)} is null.");
+            }
+
             this.ActualMinimumX = Math.Max(this.MinimumX, this.XAxis.ClipMinimum);
             this.ActualMaximumX = Math.Min(this.MaximumX, this.XAxis.ClipMaximum);
             this.ActualMinimumY = Math.Max(this.MinimumY, this.YAxis.ClipMinimum);

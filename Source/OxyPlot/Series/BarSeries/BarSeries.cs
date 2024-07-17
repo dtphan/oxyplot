@@ -9,6 +9,7 @@
 
 namespace OxyPlot.Series
 {
+    using OxyPlot.Axes;
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -37,21 +38,37 @@ namespace OxyPlot.Series
             this.NegativeFillColor = OxyColors.Undefined;
             this.TrackerFormatString = DefaultTrackerFormatString;
             this.LabelMargin = 2;
+            this.LabelAngle = 0;
             this.StackGroup = string.Empty;
             this.StrokeThickness = 0;
+            this.BaseValue = 0;
+            this.BaseLine = double.NaN;
+            this.ActualBaseLine = double.NaN;
         }
+
+        /// <summary>
+        /// Gets or sets the base value. Default value is 0.
+        /// </summary>
+        /// <value>The base value.</value>
+        public double BaseValue { get; set; }
+
+        /// <summary>
+        /// Gets or sets the base value.
+        /// </summary>
+        /// <value>The base value.</value>
+        public double BaseLine { get; set; }
+
+        /// <summary>
+        /// Gets or sets the actual base line.
+        /// </summary>
+        /// <returns>The actual base line.</returns>
+        public double ActualBaseLine { get; protected set; }
 
         /// <summary>
         /// Gets the actual fill color.
         /// </summary>
         /// <value>The actual color.</value>
         public OxyColor ActualFillColor => this.FillColor.GetActualColor(this.defaultFillColor);
-
-        /// <summary>
-        /// Gets or sets the base value.
-        /// </summary>
-        /// <value>The base value.</value>
-        public double BaseValue { get; set; }
 
         /// <summary>
         /// Gets or sets the color field.
@@ -73,18 +90,7 @@ namespace OxyPlot.Series
         /// <summary>
         /// Gets or sets the label format string.
         /// </summary>
-        /// <value>The label format string.</value>
         public string LabelFormatString { get; set; }
-
-        /// <summary>
-        /// Gets or sets the label margins.
-        /// </summary>
-        public double LabelMargin { get; set; }
-
-        /// <summary>
-        /// Gets or sets label placements.
-        /// </summary>
-        public LabelPlacement LabelPlacement { get; set; }
 
         /// <summary>
         /// Gets or sets the color of the interior of the bars when the value is negative.
@@ -164,6 +170,40 @@ namespace OxyPlot.Series
             if (this.FillColor.IsAutomatic())
             {
                 this.defaultFillColor = this.PlotModel.GetDefaultColor();
+            }
+        }
+
+        /// <summary>
+        /// Updates the axes to include the max and min of this series.
+        /// </summary>
+        protected internal override void UpdateAxisMaxMin()
+        {
+            base.UpdateAxisMaxMin();
+
+            this.ComputeActualBaseLine();
+            this.XAxis.Include(this.ActualBaseLine);
+        }
+
+        /// <summary>
+        /// Computes the actual base value..
+        /// </summary>
+        protected void ComputeActualBaseLine()
+        {
+            if (double.IsNaN(this.BaseLine))
+            {
+                if (this.XAxis.IsLogarithmic())
+                {
+                    var lowestPositiveValue = this.ActualItems == null ? 1 : this.ActualItems.Select(p => p.Value).Where(v => v > 0).MinOrDefault(1);
+                    this.ActualBaseLine = Math.Max(lowestPositiveValue / 10.0, this.BaseValue);
+                }
+                else
+                {
+                    this.ActualBaseLine = 0;
+                }
+            }
+            else
+            {
+                this.ActualBaseLine = this.BaseLine;
             }
         }
 
@@ -289,71 +329,6 @@ namespace OxyPlot.Series
                 this.EdgeRenderingMode.GetActual(EdgeRenderingMode.PreferSharpness));
         }
 
-        /// <summary>
-        /// Renders the item label.
-        /// </summary>
-        /// <param name="rc">The render context</param>
-        /// <param name="item">The item.</param>
-        /// <param name="baseValue">The bar item base value.</param>
-        /// <param name="topValue">The bar item top value.</param>
-        /// <param name="categoryValue">The bar item category value.</param>
-        /// <param name="categoryEndValue">The bar item category end value.</param>
-        protected void RenderLabel(
-            IRenderContext rc,
-            BarItem item,
-            double baseValue,
-            double topValue,
-            double categoryValue,
-            double categoryEndValue)
-        {
-            var s = StringHelper.Format(this.ActualCulture, this.LabelFormatString, item, item.Value);
-            HorizontalAlignment ha;
-            ScreenPoint pt;
-            var y = (categoryEndValue + categoryValue) / 2;
-            var sign = Math.Sign(topValue - baseValue);
-            var marginVector = new ScreenVector(this.LabelMargin, 0) * sign;
-
-            switch (this.LabelPlacement)
-            {
-                case LabelPlacement.Inside:
-                    pt = this.Transform(topValue, y);
-                    marginVector = -marginVector;
-                    ha = (HorizontalAlignment)sign;
-                    break;
-                case LabelPlacement.Outside:
-                    pt = this.Transform(topValue, y);
-                    ha = (HorizontalAlignment)(-sign);
-                    break;
-                case LabelPlacement.Middle:
-                    pt = this.Transform((topValue + baseValue) / 2, y);
-                    marginVector = new ScreenVector(0, 0);
-                    ha = HorizontalAlignment.Center;
-                    break;
-                case LabelPlacement.Base:
-                    pt = this.Transform(baseValue, y);
-                    ha = (HorizontalAlignment)(-sign);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            var va = VerticalAlignment.Middle;
-            this.Orientate(ref ha, ref va);
-
-            pt += this.Orientate(marginVector);
-
-            rc.DrawText(
-                pt,
-                s,
-                this.ActualTextColor,
-                this.ActualFont,
-                this.ActualFontSize,
-                this.ActualFontWeight,
-                0,
-                ha,
-                va);
-        }
-
         /// <inheritdoc/>
         public override void Render(IRenderContext rc)
         {
@@ -387,6 +362,11 @@ namespace OxyPlot.Series
 
                 var topValue = this.IsStacked ? baseValue + value : value;
 
+                if (this.YAxis.IsLogarithmic() && !this.YAxis.IsValidValue(topValue))
+                {
+                    continue;
+                }
+
                 // Calculate offset
                 double categoryValue;
                 if (this.IsStacked)
@@ -403,11 +383,15 @@ namespace OxyPlot.Series
                     this.Manager.SetCurrentBaseValue(stackIndex, categoryIndex, value < 0, topValue);
                 }
 
-                var rect = new OxyRect(this.Transform(baseValue, categoryValue), this.Transform(topValue, categoryValue + actualBarWidth));
+                var clampBase = this.XAxis.IsLogarithmic() && !this.XAxis.IsValidValue(baseValue);
+                var p1 = this.Transform(clampBase ? this.XAxis.ClipMinimum : baseValue, categoryValue);
+                var p2 = this.Transform(topValue, categoryValue + actualBarWidth);
 
-                this.ActualBarRectangles.Add(rect);
+                var rectangle = new OxyRect(p1, p2);
 
-                this.RenderItem(rc, topValue, categoryValue, actualBarWidth, item, rect);
+                this.ActualBarRectangles.Add(rectangle);
+
+                this.RenderItem(rc, topValue, categoryValue, actualBarWidth, item, rectangle);
 
                 if (this.LabelFormatString != null)
                 {
@@ -417,7 +401,8 @@ namespace OxyPlot.Series
                         baseValue,
                         topValue,
                         categoryValue,
-                        categoryValue + actualBarWidth);
+                        categoryValue + actualBarWidth,
+                        this.LabelFormatString);
                 }
 
                 if (!this.IsStacked)
